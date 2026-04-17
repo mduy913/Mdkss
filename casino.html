@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>DELTA CASINO</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap');
+        body { background: #000; color: #fff; font-family: 'Roboto', sans-serif; margin: 0; padding: 10px; text-align: center; }
+        .timer { width: 70px; height: 70px; border: 3px solid #ffcc00; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #ffcc00; margin: 0 auto 15px; font-family: 'Orbitron'; }
+        button { border: none; padding: 15px; border-radius: 12px; font-weight: 900; cursor: pointer; width: 100%; font-size: 16px; }
+        .btn-tai { background: #ff3131; color: #fff; }
+        .btn-xiu { background: #00f2ff; color: #000; }
+        input { width: 90%; padding: 12px; margin: 10px 0; background: #111; border: 1px solid #333; color: #fff; border-radius: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div style="max-width:450px; margin:auto; border:2px solid #ff3131; border-radius:20px; padding:20px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:10px;">
+            <a href="index.html" style="color:#666; text-decoration:none;">← VỀ SHOP</a>
+            <span>VÍ: <b id="u-bl" style="color:#00f2ff">0</b>đ</span>
+        </div>
+
+        <div class="timer" id="timer">30</div>
+        <div id="dice-area" style="font-size:45px; height:60px;">🎲🎲🎲</div>
+        <div id="res-text" style="color:#ffcc00; font-weight:bold;"></div>
+
+        <div style="display:flex; justify-content:space-around; margin: 20px 0;">
+            <div>TÀI: <br><b id="bot-t" style="color:red; font-size:20px;">6,000,000</b></div>
+            <div>XỈU: <br><b id="bot-x" style="color:cyan; font-size:20px;">6,000,000</b></div>
+        </div>
+
+        <input type="number" id="bet-amt" placeholder="Tiền cược...">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <button class="btn-tai" onclick="bet('tai')">TÀI</button>
+            <button class="btn-xiu" onclick="bet('xiu')">XỈU</button>
+        </div>
+    </div>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://shopmduy-default-rtdb.asia-southeast1.firebasedatabase.app" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let curU = localStorage.getItem('curU'), userD = {}, timeLeft = 30, isLocked = false, myBet = null;
+    
+    // Tiền bot khởi điểm 6M
+    let botT = 6000000, botX = 6500000;
+
+    db.ref('users/'+curU).on('value', s => { 
+        userD = s.val(); 
+        document.getElementById('u-bl').innerText = (userD.balance||0).toLocaleString();
+    });
+
+    setInterval(() => {
+        timeLeft--;
+        if(timeLeft < 0) timeLeft = 35;
+        document.getElementById('timer').innerText = timeLeft > 30 ? "MỞ" : timeLeft;
+
+        // Logic nhảy tiền bot: Chỉ tăng, 5s cuối dừng
+        if(timeLeft > 5 && timeLeft <= 30) {
+            isLocked = false;
+            botT += Math.floor(Math.random() * 5000000); // Tăng ngẫu nhiên
+            botX += Math.floor(Math.random() * 5000000);
+            document.getElementById('bot-t').innerText = botT.toLocaleString();
+            document.getElementById('bot-x').innerText = botX.toLocaleString();
+        } else if (timeLeft <= 5 && timeLeft > 0) {
+            isLocked = true; // Khóa cược 5s cuối
+        }
+
+        if(timeLeft === 0) openResult();
+    }, 1000);
+
+    function bet(c) {
+        if(isLocked) return alert("Đã khóa cược!");
+        const a = Number(document.getElementById('bet-amt').value);
+        if(a < 1000 || userD.balance < a) return alert("Không đủ tiền!");
+        db.ref('users/'+curU+'/balance').set(userD.balance - a);
+        myBet = { choice: c, amount: a };
+        alert("Cược thành công!");
+    }
+
+    function openResult() {
+        db.ref('system/casino_control').once('value', s => {
+            let ctrl = s.val() || {}, target = ctrl.next_result;
+            if(myBet && userD.total_bets < (ctrl.newbie_win_limit||0)) target = myBet.choice;
+
+            let d1=Math.floor(Math.random()*6)+1, d2=Math.floor(Math.random()*6)+1, d3=Math.floor(Math.random()*6)+1;
+            let total = d1+d2+d3, res = total >= 11 ? 'tai' : 'xiu';
+
+            // Ép kết quả nếu có target
+            if(target && res !== target) { /* Logic ép xúc xắc */ }
+
+            const icons = ["","⚀","⚁","⚂","⚃","⚄","⚅"];
+            document.getElementById('dice-area').innerHTML = icons[d1]+icons[d2]+icons[d3];
+            document.getElementById('res-text').innerText = total + " - " + res.toUpperCase();
+
+            if(myBet && myBet.choice === res) {
+                // Thắng nhân đôi (X2)
+                db.ref('users/'+curU+'/balance').transaction(v => (v||0) + (myBet.amount * 2));
+            }
+            
+            // Reset tiền bot cho ván mới
+            setTimeout(() => {
+                botT = 6000000 + Math.floor(Math.random()*1000000);
+                botX = 6000000 + Math.floor(Math.random()*1000000);
+                myBet = null;
+                document.getElementById('dice-area').innerHTML = "🎲🎲🎲";
+                document.getElementById('res-text').innerText = "";
+            }, 4000);
+        });
+    }
+</script>
+</body>
+</html>
