@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>DELTA SYSTEM</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Roboto:wght@400;700&display=swap');
+        :root { --cyan: #00f2ff; --gold: #ffcc00; --red: #ff3131; --bg: #050508; --card: rgba(15,15,25,0.98); }
+        * { box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background: var(--bg); color: #fff; margin: 0; padding: 10px; }
+        .orb { font-family: 'Orbitron', sans-serif; }
+        .box { background: var(--card); border-radius: 15px; border: 1px solid #1a1a2a; padding: 15px; margin-bottom: 10px; }
+        button { border: none; padding: 12px; border-radius: 10px; font-weight: 900; cursor: pointer; width: 100%; transition: 0.2s; }
+        .btn-main { background: linear-gradient(90deg, #00f2ff, #0077ff); color: #000; }
+        .btn-gold { background: linear-gradient(90deg, #ffcc00, #ff8800); color: #000; }
+        .btn-red { background: linear-gradient(90deg, #ff3131, #8b0000); color: #fff; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #222; background: #000; color: #fff; text-align: center; }
+        
+        #adm-toggle { position: fixed; width: 50px; height: 50px; background: var(--red); border-radius: 50%; z-index: 999; display: none; align-items: center; justify-content: center; cursor: pointer; border: 2px solid #fff; bottom: 20px; right: 20px; font-size: 20px; }
+        #adm-modal { position: fixed; inset: 0; background: #000; z-index: 1000; display: none; overflow-y: auto; padding: 15px; }
+        .tab-btn { padding: 8px; background: #111; color: #555; border-radius: 5px; font-size: 10px; cursor: pointer; text-align: center; }
+        .tab-btn.active { background: var(--red); color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-ui" style="max-width:350px; margin:80px auto; text-align:center;">
+        <h1 class="orb" style="color:var(--cyan)">DELTA SYSTEM</h1>
+        <div class="box">
+            <input type="text" id="au" placeholder="Username">
+            <input type="password" id="ap" placeholder="Password">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                <button class="btn-main" onclick="auth('login')">ĐĂNG NHẬP</button>
+                <button class="btn-gold" onclick="auth('reg')">ĐĂNG KÝ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-ui" style="display:none; max-width:480px; margin:auto;">
+        <div class="box">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>ID: <b id="u-id"></b></span>
+                <span>VÍ: <b id="u-bl" style="color:var(--gold)">0</b>đ</span>
+            </div>
+            <button class="btn-red" onclick="window.location.href='casino.html'" style="margin-top:15px;">🎰 VÀO SÒNG BẠC VIP</button>
+        </div>
+
+        <div class="box">
+            <h4 class="orb">💳 NẠP TIỀN</h4>
+            <input type="number" id="nap-amt" placeholder="Nhập số tiền cần nạp...">
+            <button class="btn-gold" onclick="requestNap()">GỬI YÊU CẦU NẠP</button>
+        </div>
+
+        <div class="box">
+            <h4 class="orb">🛒 CỬA HÀNG PROXY</h4>
+            <div id="shop-items" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+        </div>
+    </div>
+
+    <div id="adm-toggle" onclick="document.getElementById('adm-modal').style.display='block'">👑</div>
+
+    <div id="adm-modal">
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:5px; margin-bottom:15px;">
+            <div class="tab-btn active" onclick="showTab('tab-nap', this)">NẠP</div>
+            <div class="tab-btn" onclick="showTab('tab-key', this)">KEY</div>
+            <div class="tab-btn" onclick="showTab('tab-price', this)">GIÁ</div>
+            <div class="tab-btn" onclick="showTab('tab-soi', this)">SOI</div>
+            <div class="tab-btn" onclick="document.getElementById('adm-modal').style.display='none'" style="color:red">X</div>
+        </div>
+
+        <div id="tab-nap" class="adm-tab">
+            <div class="box"><h4>DUYỆT NẠP</h4><div id="adm-pay-list"></div></div>
+        </div>
+
+        <div id="tab-key" class="adm-tab" style="display:none">
+            <div class="box">
+                <h4>BƠM KEY</h4>
+                <select id="k-type"><option value="tuan">Tuần</option><option value="thang">Tháng</option></select>
+                <textarea id="k-list" rows="3" placeholder="Mỗi dòng 1 key..."></textarea>
+                <button class="btn-gold" onclick="addKeys()">BƠM</button>
+            </div>
+        </div>
+
+        <div id="tab-soi" class="adm-tab" style="display:none">
+            <div class="box">
+                <h4 style="color:red">SOI CẦU</h4>
+                <select id="adm-res"><option value="">Ngẫu nhiên</option><option value="tai">TÀI</option><option value="xiu">XỈU</option></select>
+                <input type="number" id="adm-new" placeholder="Số ván nhả khách mới">
+                <button class="btn-red" onclick="saveCasino()">LƯU</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://shopmduy-default-rtdb.asia-southeast1.firebasedatabase.app" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let curU, userD = {}, settings = {};
+
+    function auth(t) {
+        const u = document.getElementById('au').value.trim().toLowerCase(), p = document.getElementById('ap').value;
+        if(!u || !p) return alert("Nhập đủ thông tin!");
+        if(t==='reg') {
+            db.ref('users/'+u).set({password:p, balance:0, win_balance:0, role:'user', vip:false, uid:"U"+Date.now(), total_bets:0});
+            return alert("Đã đăng ký!");
+        }
+        db.ref('users/'+u).once('value', s => {
+            const d = s.val();
+            if(d && d.password===p) {
+                curU = u; localStorage.setItem('curU', u);
+                document.getElementById('auth-ui').style.display='none';
+                document.getElementById('main-ui').style.display='block';
+                document.getElementById('u-id').innerText = u.toUpperCase();
+                if(d.role === 'admin') document.getElementById('adm-toggle').style.display='flex';
+                db.ref('users/'+u).on('value', us => { 
+                    userD = us.val(); 
+                    document.getElementById('u-bl').innerText = (userD.balance||0).toLocaleString();
+                });
+                initAdmin();
+            } else { alert("Sai thông tin!"); }
+        });
+    }
+
+    function requestNap() {
+        const a = Number(document.getElementById('nap-amt').value);
+        if(a < 10000) return alert("Nạp tối thiểu 10k");
+        db.ref('bank_requests').push({user: curU, amount: a, status: 'pending'});
+        alert("Đã gửi yêu cầu nạp!");
+    }
+
+    function initAdmin() {
+        db.ref('bank_requests').on('value', s => {
+            const l = document.getElementById('adm-pay-list'); l.innerHTML = "";
+            s.forEach(c => {
+                if(c.val().status === 'pending') {
+                    l.innerHTML += `<div class="box">${c.val().user}: ${c.val().amount.toLocaleString()} 
+                    <button onclick="duyetNap('${c.key}','${c.val().user}',${c.val().amount})" style="width:50px">OK</button></div>`;
+                }
+            });
+        });
+    }
+
+    function duyetNap(k, u, a) {
+        db.ref('users/'+u+'/balance').transaction(v => (v||0)+a);
+        db.ref('bank_requests/'+k).update({status: 'done'});
+    }
+
+    function showTab(id, btn) {
+        document.querySelectorAll('.adm-tab').forEach(t=>t.style.display='none');
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        document.getElementById(id).style.display='block'; btn.classList.add('active');
+    }
+
+    function saveCasino() {
+        db.ref('system/casino_control').update({
+            next_result: document.getElementById('adm-res').value,
+            newbie_win_limit: Number(document.getElementById('adm-new').value)
+        }).then(()=>alert("Đã lưu!"));
+    }
+</script>
+</body>
+</html>
